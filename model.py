@@ -245,7 +245,7 @@ def compute_evidence_lower_bound(X, x_reconstructed, mu, logsigma2, hidden_repre
     X = X.unsqueeze(1).repeat(1,mu.shape[1],1)
     p = mu.shape[2]
     c = torch.tensor(2 * np.pi, device="cuda")
-
+    sigma2 = torch.exp(logsigma2)
     print("min max phi values ", phi_batch.cpu().detach().numpy().min(), phi_batch.cpu().detach().numpy().max())
     print("min max explogs ",torch.exp(logsigma2).detach().cpu().numpy().min(), torch.exp(logsigma2).detach().cpu().numpy().max())
     assert (x_reconstructed.detach().cpu().numpy() > 0).all()  and (x_reconstructed.detach().cpu().numpy() < 1).all()
@@ -254,7 +254,7 @@ def compute_evidence_lower_bound(X, x_reconstructed, mu, logsigma2, hidden_repre
     assert (torch.exp(logsigma2).detach().cpu().numpy() > 0).all()
 
     g_theta_func = - BCELoss(reduction="none")(x_reconstructed, X).sum(2)  - \
-                   0.5 * (torch.exp(logsigma2) / v2.unsqueeze(0)).sum(2) - \
+                   0.5 * (sigma2 / v2.unsqueeze(0)).sum(2) - \
                    0.5 * (torch.pow(mu - m.unsqueeze(0),2) /  v2.unsqueeze(0)).sum(2)
 
     #print( 0.5 * (torch.exp(logsigma2) / v2.unsqueeze(0)).sum(2))
@@ -270,7 +270,7 @@ def compute_evidence_lower_bound(X, x_reconstructed, mu, logsigma2, hidden_repre
 
 
 
-    entropy_term = torch.sum( phi_batch * 0.5 *  logsigma2.sum(2))
+    entropy_term = - torch.sum( phi_batch * 0.5 *  torch.log(v2.unsqueeze(0) / sigma2).sum(2))
 
     evidence_lower_bound = - (likelihood_term + entropy_term)
 
