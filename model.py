@@ -22,6 +22,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
         self.gamma_1 = torch.zeros(T, requires_grad=False,device=device)
         self.gamma_2 = torch.zeros(T, requires_grad=False,device=device)
+        self.pi = torch.zeros(T, requires_grad=False,device=device)
 
         self.decoder_network = nn.Sequential(nn.Linear(p, 400), nn.Tanh(), nn.Linear(400, 500), nn.Tanh(),
                                              nn.Linear(500, d), nn.Sigmoid())
@@ -48,22 +49,27 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
         """
 
         with torch.no_grad():
-            epsilon = torch.randn(torch.Size([batch_size,  self.T, self.p])).to(self.device)
-            hidden_representation = mu + torch.exp(0.5 * logsigma2) * epsilon
+            epsilon = torch.randn(torch.Size([100, batch_size,  self.T, self.p])).to(self.device)
+            hidden_representation = mu.unsqueeze(0) + torch.exp(0.5 * logsigma2.unsqueeze(0)) * epsilon
             x_reconstructed = self.reconstruct_observation(hidden_representation)
-            logphi_batch = - BCELoss(reduction="none")(x_reconstructed, batch.unsqueeze(1).repeat(1,self.T,1)).sum(2) \
+            logphi_batch = torch.mean(- BCELoss(reduction="none")(x_reconstructed, batch.unsqueeze(0).unsqueeze(2).repeat(100,1,self.T,1)).sum(3),0) \
                     - 0.5 * (torch.exp(logsigma2) / self.v2.unsqueeze(0)).sum(2) - \
                    0.5 * (torch.pow(mu - self.m.unsqueeze(0),2) /  self.v2.unsqueeze(0)).sum(2) \
-                    + (torch.digamma(self.gamma_1) - torch.digamma(self.gamma_1 + self.gamma_2) \
-                            + cumsum_ex(torch.digamma(self.gamma_2) - torch.digamma(self.gamma_1 + self.gamma_2))).unsqueeze(0) \
-                                         + 0.5 * (self.p * torch.log(torch.tensor(2 * np.pi * np.e,device=self.device)) + logsigma2.sum(2))
+                    + torch.log(self.pi).unsqueeze(0) \
+                    #+ (torch.digamma(self.gamma_1) - torch.digamma(self.gamma_1 + self.gamma_2) + cumsum_ex(torch.digamma(self.gamma_2) - torch.digamma(self.gamma_1 + self.gamma_2))).unsqueeze(0) \
+            + 0.5 * (self.p * torch.log(torch.tensor(2 * np.pi * np.e,device=self.device)) + logsigma2.sum(2))
 
             phi_batch = (logphi_batch - torch.logsumexp(logphi_batch,1,True)).exp()
+            phi_batch = phi_batch / torch.sum(phi_batch, 1, True)
 
-            #print("entropy : ", 0.5 * (self.p * torch.log(torch.tensor(2 * np.pi * np.e,device=self.device)) + logsigma2.sum(2)))
+          # print("log pi ",  torch.log(self.pi))
+           # print("entropy : ", 0.5 * (self.p * torch.log(torch.tensor(2 * np.pi * np.e,device=self.device)) + logsigma2.sum(2)))
             #print("digamma : ", torch.digamma(self.gamma_1) - torch.digamma(self.gamma_1 + self.gamma_2) \
-            #                + cumsum_ex(torch.digamma(self.gamma_2) - torch.digamma(self.gamma_1 + self.gamma_2)) )
-            #print("log phi ele0 of batch : ",logphi_batch[0,:])
+                  #          + cumsum_ex(torch.digamma(self.gamma_2) - torch.digamma(self.gamma_1 + self.gamma_2)) )
+           # print("log phi ele0 of batch : ",torch.mean(- BCELoss(reduction="none")(x_reconstructed, batch.unsqueeze(0).unsqueeze(2).
+            #                                                                        repeat(100,1,self.T,1)).sum(3),0)[0,:])
+           # print("logN : ",(- 0.5 * (torch.exp(logsigma2) / self.v2.unsqueeze(0)).sum(2) -
+             #      0.5 * (torch.pow(mu - self.m.unsqueeze(0),2) /  self.v2.unsqueeze(0)).sum(2))[0,:] )
             return phi_batch
 
     def update_phi(self, train_loader):
@@ -84,6 +90,9 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
                                                                                                        data)
 
 
+    def update_pi(self):
+
+        self.pi = torch.sum(self.phi, 0) / torch.sum(self.phi)
 
     def update_gammas(self):
         """
@@ -234,10 +243,17 @@ def compute_evidence_lower_bound(X, x_reconstructed, mu, logsigma2, hidden_repre
     """
 
     X = X.unsqueeze(1).repeat(1,mu.shape[1],1)
-    p = mu.shape[1]
+    p = mu.shape[2]
     c = torch.tensor(2 * np.pi, device="cuda")
 
-    g_theta_func = - BCELoss(reduction="none")(x_reconstructed, X).sum(2)   - \
+    print("min max phi values ", phi_batch.cpu().detach().numpy().min(), phi_batch.cpu().detach().numpy().max())
+    print("min max explogs ",torch.exp(logsigma2).detach().cpu().numpy().min(), torch.exp(logsigma2).detach().cpu().numpy().max())
+    assert (x_reconstructed.detach().cpu().numpy() > 0).all()  and (x_reconstructed.detach().cpu().numpy() < 1).all()
+    assert (v2.cpu().detach().numpy() > 0).all()
+    assert (phi_batch.detach().cpu().numpy() >= 0).all()  and (phi_batch.detach().cpu().numpy() <= 1).all()
+    assert (torch.exp(logsigma2).detach().cpu().numpy() > 0).all()
+
+    g_theta_func = - BCELoss(reduction="none")(x_reconstructed, X).sum(2)  - \
                    0.5 * (torch.exp(logsigma2) / v2.unsqueeze(0)).sum(2) - \
                    0.5 * (torch.pow(mu - m.unsqueeze(0),2) /  v2.unsqueeze(0)).sum(2)
 
@@ -252,15 +268,9 @@ def compute_evidence_lower_bound(X, x_reconstructed, mu, logsigma2, hidden_repre
 
 
 
-    logNormal = - 0.5 * (p * torch.log(c) + logsigma2.sum(2)) \
-                - 0.5 * (torch.pow(hidden_representation - mu,2) /  torch.exp(logsigma2)).sum(2)
 
-    #print("log normal : ", logNormal[0,:])
 
-    logNormalNoGrad = logNormal.detach().clone()
-    assert logNormalNoGrad.requires_grad == False
-
-    entropy_term = torch.sum(- phi_batch * (logNormal * logNormalNoGrad))
+    entropy_term = torch.sum( phi_batch * 0.5 *  logsigma2.sum(2))
 
     evidence_lower_bound = - (likelihood_term + entropy_term)
 

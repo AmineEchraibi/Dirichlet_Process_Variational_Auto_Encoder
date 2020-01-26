@@ -18,7 +18,7 @@ device = torch.device("cuda")
 d = 784
 p = 20
 T = 10
-eta = 5
+eta = 100
 
 train_loader = torch.utils.data.DataLoader(
     datasets.MNIST('/home/mr/Desktop/data', train=True, download=True,
@@ -42,7 +42,7 @@ test_loader = torch.utils.data.DataLoader(
 # init model
 model = DirichletProcessVariationalAutoEncoder(X_km, T, eta, d, p, N, device, "random").to(device)
 
-optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=0.0005)
+optimizer = optim.SGD(model.parameters(), lr=1e-4, weight_decay=0.0005)
 
 i = 0
 for epoch in range(1, n_epochs + 1):
@@ -54,7 +54,8 @@ for epoch in range(1, n_epochs + 1):
     if epoch == 1 or epoch % 10 == 0:
         model.update_m(train_loader)
         model.update_v2(train_loader)
-        model.update_gammas()
+        #model.update_gammas()
+        model.update_pi()
         model.update_phi(train_loader)
 
         writer.add_histogram("v2",model.v2,i)
