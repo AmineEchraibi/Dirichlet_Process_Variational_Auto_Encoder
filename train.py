@@ -18,10 +18,10 @@ device = torch.device("cuda")
 d = 784
 p = 20
 T = 10
-eta = 100
+eta = 1
 
 train_loader = torch.utils.data.DataLoader(
-    datasets.MNIST('/home/mr/Desktop/data', train=True, download=True,
+    datasets.MNIST('/home/ml/Desktop/data', train=True, download=True,
                    transform=transforms.ToTensor()),
     batch_size=N, shuffle=False)
 
@@ -31,18 +31,18 @@ for batch_idx, (data, Y) in enumerate(train_loader):
         break
 
 train_loader = torch.utils.data.DataLoader(
-    datasets.MNIST('/home/mr/Desktop/data', train=True, download=True,
+    datasets.MNIST('/home/ml/Desktop/data', train=True, download=True,
                    transform=transforms.ToTensor()),
     batch_size=batch_size, shuffle=False)
 
 test_loader = torch.utils.data.DataLoader(
-    datasets.MNIST('/home/mr/Desktop/data', train=False, transform=transforms.ToTensor()),
+    datasets.MNIST('/home/ml/Desktop/data', train=False, transform=transforms.ToTensor()),
     batch_size=batch_size, shuffle=True)
 
 # init model
 model = DirichletProcessVariationalAutoEncoder(X_km, T, eta, d, p, N, device, "random").to(device)
 
-optimizer = optim.SGD(model.parameters(), lr=1e-4, weight_decay=0.0005)
+optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=0.0005)
 
 i = 0
 for epoch in range(1, n_epochs + 1):
@@ -54,9 +54,9 @@ for epoch in range(1, n_epochs + 1):
     if epoch == 1 or epoch % 10 == 0:
         model.update_m(train_loader)
         model.update_v2(train_loader)
-        #model.update_gammas()
-        model.update_pi()
-        model.update_phi(train_loader)
+        model.update_gammas()
+        #model.update_pi()
+        model.update_phi(train_loader, writer, Y, i)
 
         writer.add_histogram("v2",model.v2,i)
         writer.add_histogram("m", model.m, i)
