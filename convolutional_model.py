@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.nn import BCELoss
 import numpy as np
-from utils import cumsum_ex, initialise_phi_with_kmeans
+from utils import cumsum_ex, initialise_phi_with_kmeans, Flatten, UnFlatten
 
 class DirichletProcessVariationalAutoEncoder(nn.Module):
     def __init__(self, X_km, T, eta, d, p, dataset_size, device, init="kmeans"):
@@ -26,11 +26,12 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
         self.decoders = torch.nn.ModuleList([])
         for k in range(T):
-            self.decoders.append(nn.Sequential(nn.Linear(p, 400), nn.Tanh(), nn.Linear(400, 500), nn.Tanh(),
-                                             nn.Linear(500, d), nn.Sigmoid()))
+            self.decoders.append(nn.Sequential(nn.Linear( p , 256), UnFlatten(),  nn.ConvTranspose2d(256, 128, 5, 2),
+                                               nn.Tanh(), nn.ConvTranspose2d(128, 64, 5, 2), nn.Tanh(),
+                                             nn.ConvTranspose2d(64,1,4,2), nn.Sigmoid()))
 
-        self.encoder_network_mu = nn.Sequential(nn.Linear(d, 500), nn.Tanh(), nn.Linear(500, 400),nn.Tanh(),  nn.Linear(400, p * T))
-        self.encoder_network_logsigma = nn.Sequential(nn.Linear(d, 500), nn.Tanh(), nn.Linear(500, 400),nn.Tanh(),  nn.Linear(400, p * T))
+        self.encoder_network_mu = nn.Sequential(nn.Conv2d(1, 32, 4, 2), nn.Tanh(), nn.Conv2d(32, 64, 4, 2),nn.Tanh(), Flatten(),  nn.Linear(1600, p * T))
+        self.encoder_network_logsigma = nn.Sequential(nn.Conv2d(1, 32, 4, 2), nn.Tanh(), nn.Conv2d(32, 64, 4, 2),nn.Tanh(), Flatten(),  nn.Linear(1600, p * T))
 
         self.N = dataset_size
         self.eta = eta
@@ -52,6 +53,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
         with torch.no_grad():
             x_reconstructed = self.reconstruct_observation(hidden_representation)
+            batch = batch.reshape([batch_size, -1])
             sigma2 = logsigma2.exp()
 
             logphi_batch = - BCELoss(reduction="none")(x_reconstructed, batch.unsqueeze(1).repeat(1,self.T,1)).sum(2) \
@@ -211,11 +213,11 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
         """
         for k in range(self.T):
             if k==0:
-                x_reconstructed = self.decoders[k](hidden_representation[:,k,:]).unsqueeze(1)
+                x_reconstructed = self.decoders[k](hidden_representation[:,k,:]).reshape([hidden_representation.shape[0], -1]).unsqueeze(1)
             else:
-                x_reconstructed = torch.cat([x_reconstructed, self.decoders[k](hidden_representation[:,k,:]).unsqueeze(1)],1)
+                x_reconstructed = torch.cat([x_reconstructed, self.decoders[k](hidden_representation[:,k,:]).reshape([hidden_representation.shape[0], -1]).unsqueeze(1)],1)
 
-        assert x_reconstructed.shape == torch.Size([hidden_representation.shape[0], self.T, self.d])
+        assert x_reconstructed.shape == torch.Size([hidden_representation.shape[0], self.T, 784])
 
         return x_reconstructed
 
@@ -257,7 +259,7 @@ def compute_evidence_lower_bound(X, x_reconstructed, mu, logsigma2, hidden_repre
     :return:
     """
 
-    X = X.unsqueeze(1).repeat(1,mu.shape[1],1)
+
 
     sigma2 = torch.exp(logsigma2)
     #print("min max phi values ", phi_batch.cpu().detach().numpy().min(), phi_batch.cpu().detach().numpy().max())
@@ -266,6 +268,8 @@ def compute_evidence_lower_bound(X, x_reconstructed, mu, logsigma2, hidden_repre
     assert (v2.cpu().detach().numpy() > 0).all()
     assert (phi_batch.detach().cpu().numpy() >= 0).all()  and (phi_batch.detach().cpu().numpy() <= 1).all()
     assert (torch.exp(logsigma2).detach().cpu().numpy() > 0).all()
+    X = X.reshape([X.shape[0], -1])
+    X = X.unsqueeze(1).repeat(1, mu.shape[1], 1)
 
     g_theta_func = - BCELoss(reduction="none")(x_reconstructed, X).sum(2)
 

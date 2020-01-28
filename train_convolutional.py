@@ -2,7 +2,7 @@ import warnings
 
 import torch.utils.data
 from torch import optim
-from model import DirichletProcessVariationalAutoEncoder, compute_evidence_lower_bound
+from convolutional_model import DirichletProcessVariationalAutoEncoder, compute_evidence_lower_bound
 from torchvision import datasets, transforms, utils
 from tensorboardX import SummaryWriter
 from utils import np,cluster_acc
@@ -15,7 +15,7 @@ N=60000
 writer = SummaryWriter()
 n_epochs = 3000
 device = torch.device("cuda")
-d = 784
+d = 28
 p = 20
 T = 25
 eta = 5
@@ -66,7 +66,7 @@ for epoch in range(1, n_epochs + 1):
 
 
     for batch_idx, (data, _) in enumerate(train_loader):
-        data = data.to(device).view(-1, 784)
+        data = data.to(device).view(-1, 1, d, d)
         optimizer.zero_grad()
 
         # model forward
@@ -88,7 +88,7 @@ for epoch in range(1, n_epochs + 1):
         writer.add_scalar("loss/entropy", entropy_term, i)
         writer.add_scalar("loss/evidence lower bound - constants", - evidence_lower_bound, i)
         for j, (data, _) in enumerate(test_loader):
-            data = data.to(device).view(-1, 784)
+            data = data.to(device).view(-1, 1, d, d)
             x_reconstructed, mu, logsigma2, hidden_representation   = model(data)
             test_loss, _,_ =  compute_evidence_lower_bound(data, x_reconstructed, mu, logsigma2,
                                                            hidden_representation,phi_batch,
@@ -125,7 +125,7 @@ for epoch in range(1, n_epochs + 1):
     #print(x_rec.shape)
 
     for k in range(T):
-        act = utils.make_grid(x_rec[:, k, :].view(batch_size, 1, 28, 28)[:64, :, :, :], normalize=True,
+        act = utils.make_grid(x_rec[:, k, :].reshape([batch_size, 1, 28, 28])[:64, :, :, :], normalize=True,
                               scale_each=True)
         writer.add_image("Sampling probs : " + str(k), act, i)
 

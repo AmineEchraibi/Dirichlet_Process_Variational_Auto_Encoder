@@ -3,6 +3,14 @@ import numpy as np
 from sklearn.cluster import KMeans
 import torch
 
+class Flatten(torch.nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), -1)
+
+class UnFlatten(torch.nn.Module):
+    def forward(self, input, size=256):
+        return input.view(input.size(0), size, 1, 1)
+
 def initialise_phi_with_kmeans(X, K):
 
     mu = KMeans(K).fit(X).cluster_centers_
