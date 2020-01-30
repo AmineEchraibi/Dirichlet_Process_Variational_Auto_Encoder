@@ -89,7 +89,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
         """
         for batch_idx, (data, _) in enumerate(train_loader):
             with torch.no_grad():
-                data = data.to(self.device).view(-1, 784)
+                data = data.to(self.device).view(data.shape[0], 1, self.d, self.d)
                 x_reconstructed, mu, logsigma2, hidden_representation = self.forward(data)
                 batch_size = data.shape[0]
                 self.phi[batch_idx *batch_size:(batch_idx + 1)*batch_size, : ] = self.update_phi_batch(hidden_representation,
@@ -151,7 +151,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
         N = torch.sum(self.phi, 0).unsqueeze(-1)
         for batch_idx, (data, _) in enumerate(train_loader):
             with torch.no_grad():
-                data = data.to(self.device).view(-1, 784)
+                data = data.to(self.device).view(data.shape[0], 1, self.d, self.d)
                 x_reconstructed, mu, logsigma2, hidden_representation = self.forward(data)
                 if batch_idx == 0:
                     self.m = self.get_batch_sum_m(mu,batch_idx,data.shape[0])
@@ -173,7 +173,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
         N = torch.sum(self.phi, 0).unsqueeze(-1)
         for batch_idx, (data, _) in enumerate(train_loader):
             with torch.no_grad():
-                data = data.to(self.device).view(-1, 784)
+                data = data.to(self.device).view(data.shape[0], 1, self.d, self.d)
                 x_reconstructed, mu, logsigma2, hidden_representation = self.forward(data)
                 if batch_idx == 0:
                     self.v2 = self.get_batch_sum_v2(logsigma2,mu, batch_idx, data.shape[0])
