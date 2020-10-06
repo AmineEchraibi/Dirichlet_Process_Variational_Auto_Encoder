@@ -11,7 +11,7 @@ parser = argparse.ArgumentParser(description='Dirichlet Process Variational Auto
 parser.add_argument('--epochs', type=int, default=3000, metavar='N',
                     help='number of epochs to train (default: 400)')
 parser.add_argument("--batch_size", default=100, help="batch size for gradient descent")
-parser.add_argument('--no-cuda', action='store_true', default=False,
+parser.add_argument('--cuda', action='store_true', default=False,
                     help='enables CUDA training')
 parser.add_argument("--dimH", type=int, default=20, help="Dimension of the Gaussian")
 parser.add_argument("--dimD", type=int, default=784, help="Dimension of the data")
