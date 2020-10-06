@@ -6,11 +6,11 @@ In this repository you will find the implementation of the DP-VAE described in t
 
 ## Mathematical model
 
-![alt text](results/model2.png =100x20)
+<img src="results/model2.png" alt="drawing" width="400"/>
 
 ## Generated samples
 
-![alt text](results/result.png =100x20e)
+![alt text](results/result.png)
 
 ## Training code
 
