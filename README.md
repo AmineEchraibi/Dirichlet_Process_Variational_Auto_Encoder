@@ -2,15 +2,15 @@
 In this repository you will find the implementation of the DP-VAE described in the following paper: https://hal.archives-ouvertes.fr/hal-02864385v2
 ## Graphical model
 
-![alt text](results/model1.png?raw=true)
+<img src="results/model1.png" alt="drawing" width="400"/>
 
 ## Mathematical model
 
-![alt text](results/model2.png?raw=true)
+<img src="results/model2.png" alt="drawing" width="400"/>
 
 ## Generated samples
 
-![alt text](results/result.png?raw=true)
+![alt text](results/result.png)
 
 ## Training code
 
