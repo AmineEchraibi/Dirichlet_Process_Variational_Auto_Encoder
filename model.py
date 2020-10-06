@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch.nn import BCELoss
-import numpy as np
 from utils import cumsum_ex, initialise_phi_with_kmeans
 
 class DirichletProcessVariationalAutoEncoder(nn.Module):
@@ -42,12 +41,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
     def update_phi_batch(self, hidden_representation, batch_size, mu, logsigma2, batch, writer, Y, i):
         """
-
-        :param batch_idx:
-        :param batch_size:
-        :param mu:
-        :param logsigma2:
-        :return:
+        Updates for phi per batch
         """
 
         with torch.no_grad():
@@ -69,21 +63,12 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
             writer.add_histogram("histogram KL : ", (- 0.5 *  torch.log(self.v2.unsqueeze(0) / sigma2).sum(2) - 0.5 * (torch.exp(logsigma2) / self.v2.unsqueeze(0)).sum(2) -
                    0.5 * (torch.pow(mu - self.m.unsqueeze(0),2) /  self.v2.unsqueeze(0)).sum(2))[0,:] ,i)
-          # print("log pi ",  torch.log(self.pi))
-           # print("entropy : ", 0.5 * (self.p * torch.log(torch.tensor(2 * np.pi * np.e,device=self.device)) + logsigma2.sum(2)))
-            #print("digamma : ", torch.digamma(self.gamma_1) - torch.digamma(self.gamma_1 + self.gamma_2) \
-                  #          + cumsum_ex(torch.digamma(self.gamma_2) - torch.digamma(self.gamma_1 + self.gamma_2)) )
-           # print("log phi ele0 of batch : ",torch.mean(- BCELoss(reduction="none")(x_reconstructed, batch.unsqueeze(0).unsqueeze(2).
-            #                                                                        repeat(100,1,self.T,1)).sum(3),0)[0,:])
-           # print("logN : ",(- 0.5 * (torch.exp(logsigma2) / self.v2.unsqueeze(0)).sum(2) -
-             #      0.5 * (torch.pow(mu - self.m.unsqueeze(0),2) /  self.v2.unsqueeze(0)).sum(2))[0,:] )
+
             return phi_batch
 
     def update_phi(self, train_loader, writer, Y, i):
         """
-
-        :param train_loader:
-        :return:
+        Update rule for phi
         """
         for batch_idx, (data, _) in enumerate(train_loader):
             with torch.no_grad():
@@ -98,13 +83,14 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
 
     def update_pi(self):
-
+        """
+        Update pi
+        """
         self.pi = torch.sum(self.phi, 0) / torch.sum(self.phi)
 
     def update_gammas(self):
         """
-
-        :return:
+        Update gammas
         """
         with torch.no_grad():
             N = self.phi.sum(0)
@@ -113,11 +99,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
     def get_batch_sum_m(self, mu, batch_idx, batch_size):
         """
-
-        :param mu:
-        :param batch_idx:
-        :param batch_size:
-        :return:
+        Batched update mean
         """
         with torch.no_grad():
             batch_m = torch.sum(self.phi[batch_idx*batch_size:batch_size*(batch_idx+1),:].unsqueeze(2) * mu, 0)
@@ -126,11 +108,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
     def get_batch_sum_v2(self, logsigma2, mu, batch_idx, batch_size):
         """
-
-        :param mu:
-        :param batch_idx:
-        :param batch_size:
-        :return:
+        batched updates variance
         """
         with torch.no_grad():
             batch_v2 = torch.sum(self.phi[batch_idx * batch_size:batch_size * (batch_idx + 1), :].unsqueeze(2)
@@ -139,11 +117,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
     def update_m(self, train_loader):
         """
-
-        :param batch_idx:
-        :param batch_size:
-        :param mu:
-        :return:
+        update mean
         """
 
         N = torch.sum(self.phi, 0).unsqueeze(-1)
@@ -161,12 +135,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
     def update_v2(self, train_loader):
         """
-
-        :param logsigma2:
-        :param mu:
-        :param batch_idx:
-        :param batch_size:
-        :return:
+        update variance
         """
         N = torch.sum(self.phi, 0).unsqueeze(-1)
         for batch_idx, (data, _) in enumerate(train_loader):
@@ -182,9 +151,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
     def compute_hidden_layer_statistics(self, x):
         """
-
-        :param x:
-        :return:
+        hidden layer mean and variance
         """
         mu = self.encoder_network_mu(x).reshape(torch.Size([x.shape[0], self.T, self.p]))
         logsigma2 = self.encoder_network_logsigma(x).reshape(torch.Size([x.shape[0], self.T, self.p]))
@@ -192,10 +159,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
     def reparametrize(self, mu, logsigma2):
         """
-
-        :param mu:
-        :param logsigma2:
-        :return:
+        reparameterization trick
         """
 
         epsilon = torch.randn(mu.size()).to(self.device)
@@ -205,9 +169,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
     def reconstruct_observation(self, hidden_representation):
         """
-
-        :param hidden_representation:
-        :return:
+        reconstruct the observation from hidden layer
         """
         for k in range(self.T):
             if k==0:
@@ -221,9 +183,7 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
     def forward(self, x):
         """
-
-        :param x:
-        :return:
+        put all together
         """
         mu, logsigma2 = self.compute_hidden_layer_statistics(x)
         hidden_representation = self.reparametrize(mu, logsigma2)
@@ -232,11 +192,8 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
         return x_reconstructed, mu, logsigma2, hidden_representation
 
     def sample_from_model(self, sample_size):
-
         """
-
-        :param sample_size:
-        :return:
+        sample observation from model per cluster
         """
         epsilon = torch.randn(torch.Size([sample_size, self.T, self.p])).to(self.device)
         hidden_reprenstations = self.m.unsqueeze(0) + self.v2.unsqueeze(0).sqrt() * epsilon
@@ -247,21 +204,12 @@ class DirichletProcessVariationalAutoEncoder(nn.Module):
 
 def compute_evidence_lower_bound(X, x_reconstructed, mu, logsigma2, hidden_representation, phi_batch, m, v2):
     """
-
-    :param X:
-    :param x_reconstructed:
-    :param mu:
-    :param logsigma2:
-    :param hidden_representation:
-    :param phi:
-    :return:
+    Optimization loss for gradient descent
     """
 
     X = X.unsqueeze(1).repeat(1,mu.shape[1],1)
 
     sigma2 = torch.exp(logsigma2)
-    #print("min max phi values ", phi_batch.cpu().detach().numpy().min(), phi_batch.cpu().detach().numpy().max())
-    #print("min max explogs ",torch.exp(logsigma2).detach().cpu().numpy().min(), torch.exp(logsigma2).detach().cpu().numpy().max())
     assert (x_reconstructed.detach().cpu().numpy() >= 0).all()  and (x_reconstructed.detach().cpu().numpy() <= 1).all()
     assert (v2.cpu().detach().numpy() > 0).all()
     assert (phi_batch.detach().cpu().numpy() >= 0).all()  and (phi_batch.detach().cpu().numpy() <= 1).all()
@@ -269,14 +217,7 @@ def compute_evidence_lower_bound(X, x_reconstructed, mu, logsigma2, hidden_repre
 
     g_theta_func = - BCELoss(reduction="none")(x_reconstructed, X).sum(2)
 
-    #print( 0.5 * (torch.exp(logsigma2) / v2.unsqueeze(0)).sum(2))
-
     likelihood_term = (phi_batch * g_theta_func).sum()
-    #print("phi batch :", phi_batch[0,:])
-    #print("g theta : ", g_theta_func[0,:])
-    #print("term 1 : ", - BCELoss(reduction="none")(x_reconstructed, X).sum(2)[0,:])
-    #print("term 2 :", - 0.5 * (torch.exp(logsigma2) / v2.unsqueeze(0)).sum(2)[0,:])
-    #print("term 3 :", - 0.5 * (torch.pow(mu - m.unsqueeze(0),2) /  v2.unsqueeze(0)).sum(2)[0,:])
 
 
     kullback_term = - 0.5 * (sigma2 / v2.unsqueeze(0)).sum(2) - \
@@ -285,8 +226,6 @@ def compute_evidence_lower_bound(X, x_reconstructed, mu, logsigma2, hidden_repre
 
 
     regularization_term =  torch.sum( phi_batch * kullback_term)
-    #condition = (regularization_term.detach().cpu().numpy() < - 3000).all()
-    #print(condition)
 
     evidence_lower_bound = - (likelihood_term + regularization_term)
 
