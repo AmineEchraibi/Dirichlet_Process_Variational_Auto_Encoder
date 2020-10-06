@@ -2,7 +2,7 @@
 In this repository you will find the implementation of the DP-VAE described in the following paper: https://hal.archives-ouvertes.fr/hal-02864385v2
 ## Graphical model
 
-![alt text](results/model1.png =100x20)
+<img src="results/model1.png" alt="drawing" width="200"/>
 
 ## Mathematical model
 
